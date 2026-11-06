@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
-import { Check, Cpu, Eye, EyeOff, KeyRound, Server, ShieldCheck, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Check, Cpu, Eye, EyeOff, KeyRound, RefreshCw, Server, ShieldCheck, X } from 'lucide-react'
+import { discoverGptModels } from '../lib/agent-router'
 import { MODEL_OPTIONS, validateSettings } from '../lib/settings'
 
 const CUSTOM_MODEL = '__custom__'
@@ -9,6 +10,11 @@ export function SettingsPanel({ open, settings, onSave, onClose }) {
   const [modelChoice, setModelChoice] = useState(settings.model)
   const [showKey, setShowKey] = useState(false)
   const [error, setError] = useState('')
+  const [routerModels, setRouterModels] = useState([])
+  const [modelsLoading, setModelsLoading] = useState(false)
+  const [modelsLoaded, setModelsLoaded] = useState(false)
+  const [modelError, setModelError] = useState('')
+  const modelRequest = useRef(null)
 
   useEffect(() => {
     if (!open) return
@@ -17,7 +23,35 @@ export function SettingsPanel({ open, settings, onSave, onClose }) {
     setModelChoice(isKnown ? settings.model : CUSTOM_MODEL)
     setShowKey(false)
     setError('')
+    setRouterModels([])
+    setModelsLoaded(false)
+    setModelError('')
   }, [open, settings])
+
+  useEffect(() => {
+    if (!open || !settings.apiKey.trim() || !settings.baseUrl.trim()) return undefined
+    const controller = new AbortController()
+    modelRequest.current = controller
+    setModelsLoading(true)
+
+    discoverGptModels({ apiKey: settings.apiKey, baseUrl: settings.baseUrl, signal: controller.signal })
+      .then((models) => {
+        setRouterModels(models)
+        setModelsLoaded(true)
+        if (models.includes(settings.model)) setModelChoice(settings.model)
+      })
+      .catch((requestError) => {
+        if (requestError.name !== 'AbortError') setModelError(requestError.message)
+      })
+      .finally(() => {
+        if (modelRequest.current === controller) {
+          modelRequest.current = null
+          setModelsLoading(false)
+        }
+      })
+
+    return () => controller.abort()
+  }, [open, settings.apiKey, settings.baseUrl, settings.model])
 
   useEffect(() => {
     if (!open) return undefined
@@ -47,6 +81,45 @@ export function SettingsPanel({ open, settings, onSave, onClose }) {
     if (value !== CUSTOM_MODEL) setDraft((current) => ({ ...current, model: value }))
     else setDraft((current) => ({ ...current, model: '' }))
   }
+
+  async function handleDiscoverModels() {
+    if (!draft.apiKey.trim()) {
+      setModelError('Enter your Agent Router API key before loading models.')
+      return
+    }
+    if (!draft.baseUrl.trim()) {
+      setModelError('Enter the Agent Router Base URL before loading models.')
+      return
+    }
+
+    modelRequest.current?.abort()
+    const controller = new AbortController()
+    modelRequest.current = controller
+    setModelsLoading(true)
+    setModelsLoaded(false)
+    setModelError('')
+
+    try {
+      const models = await discoverGptModels({
+        apiKey: draft.apiKey.trim(),
+        baseUrl: draft.baseUrl.trim(),
+        signal: controller.signal,
+      })
+      setRouterModels(models)
+      setModelsLoaded(true)
+      if (models.includes(draft.model)) setModelChoice(draft.model)
+    } catch (requestError) {
+      if (requestError.name !== 'AbortError') setModelError(requestError.message)
+    } finally {
+      if (modelRequest.current === controller) {
+        modelRequest.current = null
+        setModelsLoading(false)
+      }
+    }
+  }
+
+  const liveModelIds = new Set(routerModels)
+  const fallbackModels = MODEL_OPTIONS.filter((option) => !liveModelIds.has(option.value))
 
   return (
     <div className="fixed inset-0 z-[60] flex justify-end bg-black/70 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Agent Router settings">
@@ -112,16 +185,27 @@ export function SettingsPanel({ open, settings, onSave, onClose }) {
             <span className="mt-2 block text-xs leading-5 text-mist">Include the API version, usually <code>/v1</code>. The app calls <code>/responses</code>.</span>
           </label>
 
-          <label className="block">
+          <div>
             <span className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-white/75">
-              <Cpu size={14} className="text-acid" /> Vision model
+              <Cpu size={14} className="text-acid" /> GPT-5 to GPT-6 Astra model
             </span>
             <select value={modelChoice} onChange={handleModelChange} className="field appearance-none">
-              {MODEL_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
+              {routerModels.length > 0 && (
+                <optgroup label={`Available from Agent Router (${routerModels.length})`}>
+                  {routerModels.map((model) => (
+                    <option key={model} value={model}>
+                      {model}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              <optgroup label="Built-in GPT-5 to GPT-6 Astra catalog">
+                {fallbackModels.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label} ({option.value})
+                  </option>
+                ))}
+              </optgroup>
               <option value={CUSTOM_MODEL}>Custom model name…</option>
             </select>
             {modelChoice === CUSTOM_MODEL && (
@@ -135,7 +219,27 @@ export function SettingsPanel({ open, settings, onSave, onClose }) {
                 autoFocus
               />
             )}
-          </label>
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={handleDiscoverModels}
+                disabled={modelsLoading}
+                className="inline-flex items-center gap-2 text-xs font-semibold text-white transition hover:text-acid disabled:cursor-wait disabled:text-mist"
+              >
+                <RefreshCw size={14} className={modelsLoading ? 'animate-spin' : ''} />
+                {modelsLoading ? 'Loading models…' : 'Refresh available models'}
+              </button>
+              {modelsLoaded && !modelError && (
+                <span className="font-mono text-[9px] uppercase tracking-wider text-acid">
+                  {routerModels.length} live {routerModels.length === 1 ? 'model' : 'models'}
+                </span>
+              )}
+            </div>
+            {modelError && <p className="mt-2 text-xs leading-5 text-[#ff9a74]">{modelError}</p>}
+            {modelsLoaded && routerModels.length === 0 && !modelError && (
+              <p className="mt-2 text-xs leading-5 text-mist">No GPT-5 or GPT-6 IDs were reported by this route. The built-in and custom options remain available.</p>
+            )}
+          </div>
 
           <label className="flex cursor-pointer items-start justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.025] p-4">
             <span>

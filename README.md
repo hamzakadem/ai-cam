@@ -25,7 +25,7 @@ npm.cmd run dev
 1. Open the app and select the settings icon in the top-right corner.
 2. Enter the Agent Router API key.
 3. Confirm the Base URL. The default is `https://agentrouter.org/v1`.
-4. Select a GPT-5+ model, or choose **Custom model name** and enter the model ID exposed by your route.
+4. Select **Refresh available models** to load every GPT-5/GPT-6 model exposed by the route, including GPT-6 Astra when available. You can also use the built-in catalog or enter a custom model ID.
 5. Select **Remember API key** only on a trusted device, then save the connection.
 
 The app sends requests to `<Base URL>/responses` using the OpenAI Responses API format with an `input_image` and the `image_generation` tool. The selected Agent Router route/model must support that tool and return an image. A text-only vision route can analyze a photo but cannot produce the enhanced image required by this app.

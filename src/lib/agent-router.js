@@ -1,4 +1,5 @@
 const REQUEST_TIMEOUT_MS = 120_000
+const MODEL_REQUEST_TIMEOUT_MS = 20_000
 
 export class AgentRouterError extends Error {
   constructor(message, code = 'API_ERROR', status = 0) {
@@ -71,6 +72,65 @@ export async function enhanceImage({ image, prompt, apiKey, baseUrl, model, sign
     window.clearTimeout(timeout)
     signal?.removeEventListener('abort', abortFromCaller)
   }
+}
+
+export async function discoverGptModels({ apiKey, baseUrl, signal }) {
+  const endpoint = `${baseUrl.replace(/\/+$/, '')}/models`
+  const controller = new AbortController()
+  const abortFromCaller = () => controller.abort(signal?.reason)
+  signal?.addEventListener('abort', abortFromCaller, { once: true })
+  const timeout = window.setTimeout(() => controller.abort('timeout'), MODEL_REQUEST_TIMEOUT_MS)
+
+  try {
+    const response = await fetch(endpoint, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: controller.signal,
+    })
+    const payload = await readResponsePayload(response)
+
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        throw new AgentRouterError('Agent Router rejected the API key while loading models.', 'AUTH_ERROR', response.status)
+      }
+      throw new AgentRouterError(`Agent Router could not load the model catalog (${response.status}).`, 'MODEL_LIST_ERROR', response.status)
+    }
+
+    return extractSupportedGptModels(payload)
+  } catch (error) {
+    if (controller.signal.aborted) {
+      if (signal?.aborted) throw new DOMException('Model discovery cancelled.', 'AbortError')
+      throw new AgentRouterError('Loading Agent Router models timed out.', 'TIMEOUT')
+    }
+    if (error instanceof AgentRouterError) throw error
+    if (error instanceof TypeError) {
+      throw new AgentRouterError(
+        'Could not load models. Check the Base URL, internet connection, and browser CORS access.',
+        'NETWORK_ERROR',
+      )
+    }
+    throw error
+  } finally {
+    window.clearTimeout(timeout)
+    signal?.removeEventListener('abort', abortFromCaller)
+  }
+}
+
+export function extractSupportedGptModels(payload) {
+  const source = Array.isArray(payload) ? payload : payload?.data || payload?.models || payload?.result || []
+  const entries = Array.isArray(source)
+    ? source
+    : Object.entries(source).map(([key, value]) => (typeof value === 'string' ? value : value?.id || value?.model || value?.name || key))
+  const ids = entries
+    .map((entry) => (typeof entry === 'string' ? entry : entry?.id || entry?.model || entry?.name || ''))
+    .map((id) => String(id).trim())
+    .filter(isSupportedGptModel)
+
+  return [...new Set(ids)].sort((left, right) => left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }))
+}
+
+function isSupportedGptModel(id) {
+  const modelName = id.split('/').pop().toLowerCase().replace(/\s+/g, '-')
+  return /^gpt[-_.]?[56](?:$|[-_.a-z0-9])/.test(modelName)
 }
 
 async function readResponsePayload(response) {
