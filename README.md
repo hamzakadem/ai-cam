@@ -30,6 +30,8 @@ npm.cmd run dev
 
 The app sends requests to `<Base URL>/responses` using the OpenAI Responses API format with an `input_image` and the `image_generation` tool. The selected Agent Router route/model must support that tool and return an image. A text-only vision route can analyze a photo but cannot produce the enhanced image required by this app.
 
+Agent Router's published documentation currently lists `gpt-5.6-sol` and `gpt-6-astra` and describes the service as intended for approved coding clients. A valid token can therefore return `unauthorized_client_error` from an unapproved browser or mobile app. This is a provider access policy, not necessarily a bad key, and the app reports it separately. Do not spoof an approved client; request authorization from Agent Router or configure a compatible image API/proxy that permits this use case.
+
 API keys are never bundled into the source or build. With **Remember API key** off, the key is kept in `sessionStorage` for the current browser tab. With it on, the key is kept in browser `localStorage`. Browser storage is not a hardware-backed secret vault; for a public or multi-user deployment, proxy requests through a server-side endpoint instead.
 
 ## Production build

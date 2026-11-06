@@ -90,9 +90,15 @@ export async function discoverGptModels({ apiKey, baseUrl, signal }) {
 
     if (!response.ok) {
       if (response.status === 401 || response.status === 403) {
-        throw new AgentRouterError('Agent Router rejected the API key while loading models.', 'AUTH_ERROR', response.status)
+        throw createAuthenticationError(response.status, payload, 'loading models')
       }
-      throw new AgentRouterError(`Agent Router could not load the model catalog (${response.status}).`, 'MODEL_LIST_ERROR', response.status)
+      const serverMessage = getServerMessage(payload)
+      const detail = serverMessage ? ` ${serverMessage.slice(0, 240)}` : ''
+      throw new AgentRouterError(
+        `Agent Router could not load the model catalog (${response.status}).${detail}`,
+        'MODEL_LIST_ERROR',
+        response.status,
+      )
     }
 
     return extractSupportedGptModels(payload)
@@ -144,11 +150,10 @@ async function readResponsePayload(response) {
 }
 
 function createHttpError(status, payload) {
-  const serverMessage =
-    payload?.error?.message || payload?.error || payload?.message || (typeof payload?.raw === 'string' ? payload.raw : '')
+  const serverMessage = getServerMessage(payload)
 
   if (status === 401 || status === 403) {
-    return new AgentRouterError('Agent Router rejected the API key. Check it in Settings and try again.', 'AUTH_ERROR', status)
+    return createAuthenticationError(status, payload, 'processing the image')
   }
   if (status === 404 || status === 405) {
     return new AgentRouterError(
@@ -169,6 +174,31 @@ function createHttpError(status, payload) {
 
   const suffix = serverMessage ? ` ${String(serverMessage).slice(0, 240)}` : ''
   return new AgentRouterError(`Agent Router returned an error (${status}).${suffix}`, 'API_ERROR', status)
+}
+
+function createAuthenticationError(status, payload, action) {
+  const serverMessage = getServerMessage(payload)
+  const errorType = String(payload?.type || payload?.error?.type || '').toLowerCase()
+  const isBlockedClient = errorType === 'unauthorized_client_error' || serverMessage.toLowerCase().includes('unauthorized client')
+
+  if (isBlockedClient) {
+    return new AgentRouterError(
+      'Agent Router blocked this app as an unauthorized client. Your API key may still be valid; this service currently limits access to approved coding clients. Ask Agent Router to authorize this app, or use an image API that permits mobile clients.',
+      'UNAUTHORIZED_CLIENT',
+      status,
+    )
+  }
+
+  const detail = serverMessage ? ` Server: ${serverMessage.slice(0, 180)}` : ''
+  if (status === 403) {
+    return new AgentRouterError(`Agent Router forbids this client from ${action}.${detail}`, 'FORBIDDEN', status)
+  }
+  return new AgentRouterError(`Agent Router rejected the API key while ${action}.${detail}`, 'AUTH_ERROR', status)
+}
+
+function getServerMessage(payload) {
+  const message = payload?.error?.message || payload?.error || payload?.message || (typeof payload?.raw === 'string' ? payload.raw : '')
+  return typeof message === 'string' ? message.trim() : ''
 }
 
 function extractImage(payload) {
