@@ -1,0 +1,128 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  min-height: 100%;
+  background: #070807;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100dvh;
+  margin: 0;
+  overflow-x: hidden;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(217, 255, 67, 0.055), transparent 25rem),
+    #070807;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+label,
+input[type='range'] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid #d9ff43;
+  outline-offset: 3px;
+}
+
+::selection {
+  color: #070807;
+  background: #d9ff43;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #070807;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid #070807;
+  border-radius: 999px;
+  background: #333830;
+}
+
+@layer components {
+  .field {
+    @apply block w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white placeholder:text-white/25 transition focus:border-acid/60 focus:outline-none focus:ring-2 focus:ring-acid/10;
+  }
+
+  .primary-button {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-acid px-5 py-3 text-sm font-semibold text-ink transition hover:bg-[#e5ff75] active:scale-[0.985];
+  }
+
+  .secondary-button {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.035] px-5 py-3 text-sm font-medium text-white transition hover:border-white/30 hover:bg-white/[0.07] active:scale-[0.985];
+  }
+
+  .icon-button {
+    @apply grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/10 text-mist transition hover:border-white/25 hover:bg-white/5 hover:text-white;
+  }
+}
+
+.safe-top {
+  padding-top: var(--safe-top);
+}
+
+.safe-bottom {
+  padding-bottom: max(1rem, var(--safe-bottom));
+}
+
+.camera-vignette {
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.38), transparent 28%, transparent 62%, rgba(0, 0, 0, 0.56)),
+    radial-gradient(circle, transparent 46%, rgba(0, 0, 0, 0.4) 115%);
+}
+
+.comparison-range::-webkit-slider-thumb {
+  width: 52px;
+  height: 100dvh;
+  appearance: none;
+}
+
+.comparison-range::-moz-range-thumb {
+  width: 52px;
+  height: 100dvh;
+  border: 0;
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

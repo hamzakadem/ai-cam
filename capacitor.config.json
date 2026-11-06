@@ -1,0 +1,9 @@
+{
+  "appId": "com.aperture.aicamera",
+  "appName": "Aperture AI Camera",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": false
+  }
+}
